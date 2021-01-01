@@ -1,0 +1,46 @@
+version: '3'
+
+services:
+  powerdns-admin:
+    image: ngoduykhanh/powerdns-admin:latest
+    ports:
+      - "9191:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+    environment:
+      - SQLALCHEMY_DATABASE_URI=mysql://pdns:pdns@mysql/pdns
+      - GUNICORN_TIMEOUT=60
+      - GUNICORN_WORKERS=2
+      - GUNICORN_LOGLEVEL=DEBUG
+      - OFFLINE_MODE=False
+  powerdns:
+    build: ./
+    volumes:
+      - ./pdns.conf:/etc/pdns/pdns.conf:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+      - "1053:53/tcp"
+      - "1053:53/udp"
+  mysql:
+    image: mysql:5.7
+    healthcheck:
+      test: "echo 'SELECT version();'| mysql -u pdns -h 127.0.0.1 --password=pdns pdns"
+      timeout: 30s
+      retries: 5
+    ports:
+      - "13306:3306/tcp"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - mysql_data:/var/lib/mysql
+    environment:
+      - "MYSQL_DATABASE=pdns"
+      - "MYSQL_USER=pdns"
+      - "MYSQL_PASSWORD=pdns"
+      - "MYSQL_RANDOM_ROOT_PASSWORD=yes"
+volumes:
+  mysql_data:
